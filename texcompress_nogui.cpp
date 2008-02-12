@@ -11,9 +11,8 @@
   code made available by me according to the terms of the GPL.
 
   Copyright (C) 2007 Joachim Schiele <js@dune2.de>
-
-
-  --
+   
+  ---------------------------------------
 
   DDS GIMP plugin
 
@@ -45,9 +44,19 @@
 ** before using this code
 */
 
+#include <GL/glew.h>
 #include <fstream>
 #include "Bitmap.h"
 #include "texcompress_nogui.h"
+#include <libtxc_dxtn/txc_compress_dxtn.c>
+//#include <dlfcn.c>
+#include <windows.h>
+#include <stdio.h>
+#include <GL/gl.h>
+#include <IL/ilut.h>
+#include <IL/ilu.h>
+#include <IL/il.h>
+#include "FileHandler.h"
 
 using namespace std;
 
@@ -64,7 +73,7 @@ void compressed_rgba_s3tc_dxt1_ext_software(int mipmaps,unsigned char *src, int 
 int dxt_compress(unsigned char *dst, unsigned char *src, int format,
                  unsigned int width, unsigned int height, int bpp,
                  int mipmaps) {
-    int internal = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+    int internal = 0x83F1;
     int i, size, w, h;
     unsigned int offset;
     unsigned char *tmp;
@@ -134,8 +143,10 @@ int generate_mipmaps_software(unsigned char *dst, unsigned char *src,
         h = height >> i;
         if (w < 1) w = 1;
         if (h < 1) h = 1;
-
+        
         scale_image_cubic(dst + offset, w, h, src, width, height, bpp);
+        
+        //iluBlurGaussian(5);
 
         offset += (w * h * bpp);
     }
@@ -248,7 +259,7 @@ int get_num_mipmaps(int width, int height) {
     return(n);
 }
 
-bool compress_one(const char * in_filename) {
+bool ccompress_one(const char * in_filename) {
     int w, h;
     int bpp=4;
     unsigned char* dst;
@@ -329,6 +340,9 @@ bool compress_one(const char * in_filename) {
 
 int main(int argc, char **argv) {
 
+	ilInit();
+	iluInit();
+	
     if (argc < 2) {
         printf("Usage: %s image.png\n", argv[0]);
         return 1;
@@ -338,7 +352,7 @@ int main(int argc, char **argv) {
      * Load the shared library for dxt compression
      */
 
-    hdxtn = dlopen(DXTN_DLL, RTLD_LAZY | RTLD_GLOBAL);
+    HINSTANCE hdxtn = LoadLibrary(DXTN_DLL);
     if (hdxtn == NULL) {
         printf("Unable to load library %s\n", DXTN_DLL);
         printf("If the library libtxc isn't installed. DO THIS NOW ;-)\n");
@@ -348,10 +362,10 @@ int main(int argc, char **argv) {
     }
     printf("Library %s found and loaded with success\n", DXTN_DLL);
 
-    compress_dxtn = (void (*)(int, int, int, const unsigned char*, int, unsigned char*))dlsym(hdxtn, "tx_compress_dxtn");
+    compress_dxtn = (void (*)(int, int, int, const unsigned char*, int, unsigned char*))GetProcAddress(hdxtn, "tx_compress_dxtn");
 
     if (compress_dxtn == NULL) {
-        dlclose(hdxtn);
+        //dlclose(hdxtn);
         printf("Missing symbol `tx_compress_dxtn' in %s\n", DXTN_DLL);
         return 1;
     }
@@ -361,11 +375,12 @@ int main(int argc, char **argv) {
      */
 
     for (int i = 1; i < argc; i++) {
-        if (!compress_one(argv[i])) {
-            printf("ERROR, couldn't compress_one(%s)\n", argv[i]);
+        if (!ccompress_one(argv[i])) {
+            printf("ERROR, couldn't ccompress_one(%s)\n", argv[i]);
             return 1;
         }
     }
+    FreeLibrary(hdxtn);
 
     return 0;
 }

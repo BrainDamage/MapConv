@@ -1,11 +1,16 @@
 #include "TileHandler.h"
 #include "FileHandler.h"
-#ifdef WIN32
 #include "ddraw.h"
-#endif
 #include "mapfile.h"
+#include <iostream.h>
+#include <IL/ilut.h>
+#include <IL/ilu.h>
+#include <IL/il.h>
+#include <string>
 
-extern string stupidGlobalCompressorName; /* MapConv.cpp */
+extern string stupidGlobalCompressorName;
+using namespace std;
+string prog;
 
 CTileHandler tileHandler;
 
@@ -19,16 +24,17 @@ CTileHandler::~CTileHandler(void)
 		delete tiles[a];
 }
 
-void CTileHandler::LoadTexture(string name)
+void CTileHandler::LoadTexture(string name,unsigned int x,unsigned int y,int filter)
 {
 	printf("Loading texture\n");
-	bigTex.Load(name);
-
+	
+	bigTex.Load(name,255,x,y,filter,false,1,true,(bool)false,false);
+	
 	xsize=bigTex.xsize/8;
 	ysize=bigTex.ysize/8;
 }
 
-void CTileHandler::ProcessTiles(float compressFactor)
+void CTileHandler::ProcessTiles(float compressFactor,int quality,string format)
 {
 	meanThreshold=(int)(2000*compressFactor);
 	meanDirThreshold=(int)(20000*compressFactor);
@@ -89,56 +95,71 @@ void CTileHandler::ProcessTiles(float compressFactor)
 		}
 		CBitmap square(data,1024,1024);
 		char name[100];
-#ifdef WIN32
-		sprintf(name,"temp\\Temp%03i.bmp",a);
-#else
-		sprintf(name,"temp/Temp%03i.bmp",a);
-#endif
-		square.Save(name);
-		printf("Writing bmp files %i%%\n", (((a+1)*1024)*100)/(tilex*tiley));
+		if (format.substr(0,format.length())=="bmp") sprintf(name,"temp\\Temp%03i.bmp",a);
+		if (format.substr(0,format.length())=="png") sprintf(name,"temp\\Temp%03i.png",a);
+		if (format.substr(0,format.length())=="jpg") sprintf(name,"temp\\Temp%03i.jpg",a);
+		if (format.substr(0,format.length())=="tga") sprintf(name,"temp\\Temp%03i.tga",a);
+		if (format.substr(0,format.length())=="raw") sprintf(name,"temp\\Temp%03i.raw",a);
+		if (format.substr(0,format.length())=="ppm") sprintf(name,"temp\\Temp%03i.ppm",a);
+		if (format.substr(0,format.length())=="dds") sprintf(name,"temp\\Temp%03i.dds",a);
+		if (format.substr(0,format.length())=="rgb") sprintf(name,"temp\\Temp%03i.rgb",a);
+		if (format.substr(0,format.length())=="tif") sprintf(name,"temp\\Temp%03i.tif",a);
+
+		square.Save(name,quality);
+		printf("Writing tile files %i%%\n", (((a+1)*1024)*100)/(tilex*tiley));
 	}
-
 	printf("Creating dds files\n");
-	char execstring[512];
-#ifdef WIN32
-	sprintf(execstring, "nvdxt.exe -file temp\\*.bmp -dxt1c -dither");
-	system(execstring);
-	system("del temp\\temp*.bmp");
-#else
-	snprintf(execstring, 512,
-		"%s temp/*.bmp", stupidGlobalCompressorName.c_str());
-	system(execstring);
-	system("rm temp/Temp*.bmp");
-#endif
-
+	string execstring=stupidGlobalCompressorName.c_str();
+	char program[32];
+	
+	execstring.copy(program,execstring.find_first_of('-'),0);
+	
+	prog+=program;
+	
+	if (prog == "nvdxt.exe ")	
+	   cout << "texture program: nvdxt." << endl;
+	if (prog == "nvcompress.exe ")   
+	   cout << "texture program: nvcompress" << endl;
+	if ( prog == "texconv.exe ")
+	   cout << "texture program: texconv" << endl;
+	if ( prog == "texcompress.exe ")
+	   cout << "texture program: texcompress" << endl;
+	if ( prog == "old_nvdxt.exe ")
+	   cout << "texture program: the old nvdxt" << endl;
+	
+	system(execstring.c_str());
+	
 	delete[] data;
 }
+
 
 void CTileHandler::ProcessTiles2(void)
 {
 	unsigned char* data=new unsigned char[1024*1024*4];
-	bigTex=CBitmap(data,1,1);	//free big tex memory
+	bigTex=CBitmap(data,1,1);	/// /free big tex memory
 	int tilex=xsize/4;
 	int tiley=ysize/4;
 
 	for(int a=0;a<(tilex*tiley)/1024;++a){
 		int startTile=a*1024;
 
-#ifdef WIN32
+		char name[100];
 		DDSURFACEDESC2 ddsheader;
 		int ddssignature;
-		char name[100];
-		sprintf(name,"Temp%03i.dds",a);
-		CFileHandler file(name);
-		file.Read(&ddssignature, sizeof(int));
-		file.Read(&ddsheader, sizeof(DDSURFACEDESC2));
-#else
-		char name[100];
-		snprintf(name, 100, "temp/Temp%03i.bmp.raw", a);
-		CFileHandler file(name);
-#endif
+		CFileHandler file;
+		
+		if (prog == "nvdxt.exe " || prog == "nvcompress.exe " || prog == "texconv.exe " || prog == "old_nvdxt.exe "){	
+			sprintf(name,"Temp%03i.dds",a);	
+		    file.Open(name);
+			file.Read(&ddssignature, sizeof(int));
+			file.Read(&ddsheader, sizeof(DDSURFACEDESC2));
+		} 
+		if (prog == "texcompress.exe "){
+		    sprintf(name, "temp\\Temp%03i.png.raw", a);
+		    file.Open(name);
+		}    
 
-		char bigtile[696320]; //1024x1024 and 4 mipmaps
+		char bigtile[696320]; // /1024x1024 and 4 mipmaps
 		file.Read(bigtile, 696320);
 
 		for(int b=0;b<1024;++b){
@@ -169,11 +190,6 @@ void CTileHandler::ProcessTiles2(void)
 	}
 
 	delete[] data;
-#ifdef WIN32
-	system("del temp*.dds");
-#else
-	system("rm temp/Temp*.bmp.raw");
-#endif
 }
 
 void CTileHandler::SaveData(ofstream& ofs)

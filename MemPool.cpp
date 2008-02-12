@@ -13,8 +13,9 @@ CMemPool::CMemPool()
 	}
 };
 
-void* CMemPool::Alloc(size_t n)
+void* CMemPool::Alloc(size_t nn)
 {
+  int n = nn;	 
   if(n>MAX_MEM_SIZE || n<4){
     return ::operator new(n);
   }
@@ -36,10 +37,11 @@ void* CMemPool::Alloc(size_t n)
   return p;
 }
 
-void CMemPool::Free(void* p,size_t n)
+void CMemPool::Free(void* p,size_t nn)
 {
   if(p==0) return;
   
+  int n = nn;	
   if(n>MAX_MEM_SIZE || n<4){
     ::operator delete(p);
     return;

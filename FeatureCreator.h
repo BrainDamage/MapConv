@@ -13,8 +13,8 @@ class CFeatureCreator
 public:
 	CFeatureCreator(void);
 	~CFeatureCreator(void);
-	void WriteToFile(ofstream* file, vector<string> F_map);
-	void CreateFeatures(CBitmap* bm, int startx, int starty, int arbFeatureTypes, std::string featurefile, std::string geoVentFile);
+	void WriteToFile(ofstream* file, vector<string> F_map,int x,int y);
+	void CreateFeatures(CBitmap* bm, int startx, int starty, int arbFeatureTypes, std::string featurefile, std::string geoVentFile,int x,int y,bool igh = false, bool tolerance = false);
 	
 private:
 	int xsize,ysize;
@@ -24,7 +24,7 @@ private:
 
 	unsigned char* vegMap;
 
-	void PlaceVent(int x, int y, CBitmap * feature, CBitmap * vent, CBitmap * bm);
+	void PlaceVent(int x, int y, CBitmap * feature, CBitmap * vent, CBitmap * bm, bool igh = false);
 	bool FlatSpot(int x, int y);
 };
 

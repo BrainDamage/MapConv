@@ -7,11 +7,13 @@
 class CFileHandler
 {
 public:
+	CFileHandler();
 	CFileHandler(const char* filename);
 	CFileHandler(std::string filename);
 	~CFileHandler(void);
 	
 	bool FileExists();
+	void Open(const char* filename);
 
 	void Read(void* buf,int length);
 	void Seek(int pos);
@@ -23,8 +25,8 @@ public:
 private:
 	void Init(const char* filename);
 
-	std::ifstream* ifs;
 	int filesize;
+	std::ifstream* ifs;
 };
 
 #endif // __FILE_HANDLER_H__

@@ -2,12 +2,15 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include <ostream>
-#include <fstream>
+#include <ostream.h>
+#include <fstream.h>
 #include "FileHandler.h"
 #include <IL/il.h>
+#include <IL/ilu.h>
+#include <IL/ilut.h>
 #include "Bitmap.h"
-#include <assert.h>
+#include <assert.h> 
+#include <iostream.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -16,11 +19,12 @@
 struct InitializeOpenIL {
 	InitializeOpenIL() {
 		ilInit();
+		iluInit();
 	}
 	~InitializeOpenIL() {
 		ilShutDown();
 	}
-} static initOpenIL;
+}static initOpenIL;
 
 CBitmap::CBitmap()
   : xsize(1),
@@ -50,12 +54,12 @@ CBitmap::CBitmap(unsigned char *data, int xsize, int ysize)
 	memcpy(mem,data,xsize*ysize*4);
 }
 
-CBitmap::CBitmap(string const& filename)
+CBitmap::CBitmap(string const& filename,int x,int y,bool add,int type,bool tex,bool tex2,bool geotherm)
 : mem(0),
   xsize(0),
   ysize(0)
 {
-	Load(filename);
+	Load(filename,255,x,y,2,add,type,tex,tex2,geotherm);
 }
 
 CBitmap& CBitmap::operator=(const CBitmap& bm)
@@ -71,10 +75,13 @@ CBitmap& CBitmap::operator=(const CBitmap& bm)
 	return *this;
 }
 
-void CBitmap::Load(string const& filename, unsigned char defaultAlpha)
-{
+void CBitmap::Load(string const& filename, unsigned char defaultAlpha,int x,int y,int filter,bool add,int type,bool tex,bool typemap,bool geotherm)
+{	 
 	delete[] mem;
 	mem = NULL;
+	
+	xsize = 1;
+	ysize = 1;
 
 	ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
 	ilEnable(IL_ORIGIN_SET);
@@ -84,13 +91,14 @@ void CBitmap::Load(string const& filename, unsigned char defaultAlpha)
 	CFileHandler file(filename);
 	if(file.FileExists() == false)
 	{
+		cout << "file " << filename << " not found" << endl;
 		xsize = 1;
 		ysize = 1;
 		mem=new unsigned char[4];
 		memset(mem, 0, 4);
 		return;
 	}
-
+	
 	unsigned char *buffer = new unsigned char[file.FileSize()];
 	file.Read(buffer, file.FileSize());
 
@@ -103,6 +111,7 @@ void CBitmap::Load(string const& filename, unsigned char defaultAlpha)
 
 	if(success == false)
 	{
+		cout << "failed to load " << filename << endl;
 		xsize = 1;
 		ysize = 1;
 		mem=new unsigned char[4];
@@ -111,22 +120,147 @@ void CBitmap::Load(string const& filename, unsigned char defaultAlpha)
 	}
 
 	bool noAlpha=ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL)!=4;
-#if !defined(__APPLE__) // Temporary fix to allow testing of everything
-						// else until i get a quicktime image loader written
+	
 	ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE);
+	if (!x == 1 && !x < 1 || !y == 1 && !y < 1){
+	   if (filter == 1){
+		  cout << "using ilu_nearest for rescaling" << endl; 
+          iluImageParameter(ILU_FILTER,ILU_NEAREST);
+	   }   
+	   if (filter == 3){
+	      cout << "using ilu_scale_mitchel for rescaling" << endl; 
+	      iluImageParameter(ILU_FILTER,ILU_SCALE_MITCHELL);
+	   }   
+	   if (!filter == 1 && !filter == 3){
+		  cout << "using ilu_scale_triangle for rescaling" << endl;
+	      iluImageParameter(ILU_FILTER,ILU_SCALE_TRIANGLE); 
+	   }   
+	}        
+	   
+	int both = 0;
+	
+	if (geotherm == false){
+	 if (!(x == 1 || y == 1)){
+	   both = 1;
+	   if (tex == true){
+		  cout << "scaling texture in both xy axis..." << endl;  
+          iluScale(x*512,y*512,1);
+	   }
+	   if (tex == false){
+	      if (typemap == false){
+		     cout << "scaling something else in both xy axis..." << endl;
+		     if (add == true)
+	             iluScale((x*64)+1,(y*64)+1,1); 
+	         if (add == false)
+	             iluScale(x*64,y*64,1);   
+	      }   
+	      if (typemap == true){
+		     cout << "scaling typemap in both xy axis..." << endl; 
+	         iluScale(x*32,y*32,1);
+	      }   
+	   }    
+       if (both == 0){
+    	  if (x > 1){  
+    	     if (tex == true){
+    		     cout << "scaling texture in both xy axis..." << endl;  
+                 iluScale(x*512,IL_IMAGE_HEIGHT,1);
+    	     }
+    	     if (tex == false){
+    	         if (typemap == false){
+    		        cout << "scaling something else in both xy axis..." << endl;
+    		        if (add == true)
+    	                iluScale((x*64)+1,ilGetInteger(IL_IMAGE_HEIGHT),1);
+    	            if (add == false)
+    	                iluScale(x*64,ilGetInteger(IL_IMAGE_HEIGHT),1); 
+    	         }
+    	         if (typemap == true){
+    		        cout << "scaling typemap in both xy axis..." << endl; 
+    	            iluScale(x*32,ilGetInteger(IL_IMAGE_HEIGHT),1);
+    	         }   
+    	     }
+    	  }
+    	  if (y > 1){  
+    	     if (tex == true){
+    		     cout << "scaling texture in both xy axis..." << endl;  
+                 iluScale(ilGetInteger(IL_IMAGE_WIDTH),y*512,1);
+    	     }
+    	     if (tex == false){
+    	         if (typemap == false){
+    		        cout << "scaling something else in both xy axis..." << endl;
+    		        if (add == true)
+    	                iluScale(ilGetInteger(IL_IMAGE_WIDTH),(y*64)+1,1);
+    	            if (add == false)
+    	                iluScale(ilGetInteger(IL_IMAGE_WIDTH),y*64,1); 
+    	         }
+    	         if (typemap == true){
+    		        cout << "scaling typemap in both xy axis..." << endl; 
+    	            iluScale(ilGetInteger(IL_IMAGE_WIDTH),y*512,1);
+    	         }   
+    	     }
+    	  }
+	   }  
+	 }
+	
+	 switch (type){
+	      case 1: cout << "current texture width:" << ilGetInteger(IL_IMAGE_WIDTH) << endl; 
+	              cout << "current texture height:" << ilGetInteger(IL_IMAGE_HEIGHT) << endl;
+	              break;
+	      case 2: cout << "current heightmap width:" << ilGetInteger(IL_IMAGE_WIDTH) << endl; 
+	              cout << "current heightmap height:" << ilGetInteger(IL_IMAGE_HEIGHT) << endl;
+	              break;
+	      case 3: cout << "current metalmap width:" << ilGetInteger(IL_IMAGE_WIDTH) << endl; 
+                  cout << "current metalmap height:" << ilGetInteger(IL_IMAGE_HEIGHT) << endl;
+                  break;
+	      case 4: cout << "current feature map width:" << ilGetInteger(IL_IMAGE_WIDTH) << endl; 
+                  cout << "current feature map height:" << ilGetInteger(IL_IMAGE_HEIGHT) << endl;
+                  break;
+	      case 5: cout << "current feature map width:" << ilGetInteger(IL_IMAGE_WIDTH) << endl; 
+                  cout << "current feature map height:" << ilGetInteger(IL_IMAGE_HEIGHT) << endl;
+                  break;
+	      case 6: cout << "current typemap width:" << ilGetInteger(IL_IMAGE_WIDTH) << endl; 
+	              cout << "current typemap height:" << ilGetInteger(IL_IMAGE_HEIGHT) << endl;
+	              break;
+	 }              
+	}
+	
 	xsize = ilGetInteger(IL_IMAGE_WIDTH);
 	ysize = ilGetInteger(IL_IMAGE_HEIGHT);
-
+	
+	if (geotherm == false){
+	 if (tex == true){
+		if (!(x == 1)) 
+	       xsize = x*512;
+	    if (!(y == 1))   
+		   ysize = y*512;
+	 }
+	 if (tex == false){
+	   if (typemap == false){	
+	      if (add == true){	
+	  	     if (!(x == 1))   
+	            xsize = (x*64) + 1;
+	 	     if (!(y == 1))      
+	  	        ysize = (y*64) + 1;
+	      }   
+	      if (add == false){
+	  	     if (!(x == 1))    
+	            xsize = x*64; 
+	 	     if (!(y == 1))   
+	  	        ysize = y*64;
+	      }
+	   }
+	   if (typemap == true){
+		  if (!(y == 1))   
+		     xsize = x*32;
+		  if (!(y == 1))   
+		     ysize = y*32;  
+	   }
+	 }
+	}
+	 
 	mem = new unsigned char[xsize * ysize * 4];
-	//	ilCopyPixels(0,0,0,xsize,ysize,0,IL_RGBA,IL_UNSIGNED_BYTE,mem);
-	memcpy(mem, ilGetData(), xsize * ysize * 4);
-#else
-	xsize = 4;
-	ysize = 4;
-
-	mem = new unsigned char[xsize * ysize * 4];
-#endif
-
+	//ilCopyPixels(0,0,0,xsize,ysize,1,IL_RGBA,IL_UNSIGNED_BYTE,mem) ; 
+	memcpy(mem, ilGetData(),xsize * ysize * 4);
+		
 	ilDeleteImages(1, &ImageName); 
 
 	if(noAlpha){
@@ -138,16 +272,16 @@ void CBitmap::Load(string const& filename, unsigned char defaultAlpha)
 	}
 }
 
-
-void CBitmap::Save(string const& filename)
+void CBitmap::Save(string const& filename,int quality)
 {
 	ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
 	ilEnable(IL_ORIGIN_SET);
+	ilEnable(IL_FILE_OVERWRITE);
 
 	unsigned char* buf=new unsigned char[xsize*ysize*4];
 	/* HACK Flip the image so it saves the right way up.
-		(Fiddling with ilOriginFunc didn't do anything?)
-		Duplicated with ReverseYAxis. */
+		(Fiddling with ilOriginFunc didn't do anything?)/
+		Duplicated with ReverseYAxis.  */
 	for(int y=0;y<ysize;++y){
 		for(int x=0;x<xsize;++x){
 			buf[((ysize-1-y)*xsize+x)*4+0]=mem[((y)*xsize+x)*4+0];
@@ -158,7 +292,7 @@ void CBitmap::Save(string const& filename)
 	}
 
 	ilHint(IL_COMPRESSION_HINT, IL_USE_COMPRESSION);
-	ilSetInteger (IL_JPG_QUALITY, 80);
+	ilSetInteger (IL_JPG_QUALITY, quality);
 
 	ILuint ImageName = 0;
 	ilGenImages(1, &ImageName);
@@ -171,12 +305,13 @@ void CBitmap::Save(string const& filename)
 	delete[] buf;
 }
 
+
 // Depreciated (Only used by GUI which will be replaced by CEGUI anyway)
 void CBitmap::SetTransparent( unsigned char red, unsigned char green, unsigned char blue )
 {
-	for ( unsigned int y = 0; y < xsize; y++ )
+	for ( int y = 0; y < xsize; y++ )
 	{
-		for ( unsigned int x = 0; x < xsize; x++ )
+		for ( int x = 0; x < xsize; x++ )
 		{
 			unsigned int index = (y*xsize + x)*4;
 			if ( mem[index+0] == red &&
@@ -241,6 +376,25 @@ CBitmap CBitmap::CreateMipmapLevel(void)
 
 	return bm;
 
+}
+
+CBitmap CBitmap::Rescale(int newx, int newy)
+{
+	CBitmap bm;
+
+	delete[] bm.mem;
+	
+	bm.mem=new unsigned char[newx*newy*4];
+	
+	iluImageParameter(ILU_FILTER,ILU_SCALE_MITCHELL); 
+	iluScale(newx,newy,1); 
+	
+	bm.xsize=ilGetInteger(IL_IMAGE_WIDTH);
+	bm.ysize=ilGetInteger(IL_IMAGE_HEIGHT);
+
+	memcpy(mem, ilGetData(),xsize * ysize * 4);
+
+	return bm;
 }
 
 CBitmap CBitmap::CreateRescaled(int newx, int newy)

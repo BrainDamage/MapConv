@@ -36,14 +36,18 @@
 #define IS_POT(x)      (!((x) & ((x) - 1)))
 #include <stdlib.h>
 
-#include <GL/gl.h>
-#include <dlfcn.h>
+/*#include <GL/gl.h>
+#include <GL/glew.h>
+#include <GL/glu.h>*/
+
 
 #include <string.h>
 #include <math.h>
 
 void *hdxtn = NULL;
-#define DXTN_DLL "libtxc_dxtn.so"
+#define DXTN_DLL "dxtn.dll"
+#define RTLD_LAZY   1
+#define RTLD_GLOBAL 1
 
 static void (*compress_dxtn)(int, int, int, const unsigned char*, int, unsigned char *) = NULL;
 
@@ -62,7 +66,9 @@ float cubic_interpolate(float a, float b, float c, float d, float x);
 unsigned int get_mipmapped_size(int width, int height, int bpp,
                                 int level, int num, int format);
 int get_num_mipmaps(int width, int height);
+bool ccompress_one(const char * in_filename);
 bool compress_one(const char * in_filename);
+typedef double (*importFunction)(double, double);
 
 
 

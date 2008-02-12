@@ -2,11 +2,11 @@
 #include "Bitmap.h"
 #include "math.h"
 #define NUM_TREE_TYPES 16
-#define treetop 215 /* TODO Shouldn't this be related to the previous define somehow? */
-extern float* heightmap;
+#define treetop (199+NUM_TREE_TYPES)  
+extern float* heightmap; 
 
-#include <iostream> /* cout */
-using namespace std; /* cout */
+#include <iostream> 
+using namespace std; 
 
 CFeatureCreator::CFeatureCreator(void)
 {
@@ -16,7 +16,7 @@ CFeatureCreator::~CFeatureCreator(void)
 {
 }
 
-void CFeatureCreator::WriteToFile(ofstream* file, vector<string> F_map)
+void CFeatureCreator::WriteToFile(ofstream* file, vector<string> F_map,int x,int y)
 {
 	//write vegetation map
 	file->write((char*)vegMap,xsize/4*ysize/4);
@@ -53,7 +53,7 @@ void CFeatureCreator::WriteToFile(ofstream* file, vector<string> F_map)
 	}
 }
 
-void CFeatureCreator::CreateFeatures(CBitmap* bm, int startx, int starty, int arbFeatureTypes, std::string featurefile, std::string geoVentFile)
+void CFeatureCreator::CreateFeatures(CBitmap* bm, int startx, int starty, int arbFeatureTypes, std::string featurefile, std::string geoVentFile,int x,int y, bool igh, bool tolerance)
 {
 	printf("Creating features\n");
 	xsize=bm->xsize/8;
@@ -61,42 +61,58 @@ void CFeatureCreator::CreateFeatures(CBitmap* bm, int startx, int starty, int ar
 	mapx=xsize+1;
 
 	//geovent decal
-	CBitmap vent(geoVentFile);
-	CBitmap feature(featurefile);
+	CBitmap vent(geoVentFile,x,y,false,4,false,false,true);
+	CBitmap feature(featurefile,x,y,false,5,false,false,false);
 	unsigned char* map=new unsigned char[ysize*xsize];
 
 	int LastTree[2]={0,0};
+	
+	int tol=0;
+	if (tolerance == true)
+		tol = 3;
+	if (tolerance == false)
+		tol = 0;
+	
 	for(int y=0;y<feature.ysize;++y){
 		for(int x=0;x<feature.xsize;++x){
-			/* Read vents and trees from the green channel. */
+			/*Read vents and trees from the green channel. */
 			unsigned char c=feature.mem[(y*feature.xsize+x)*4+1];
 			if(c==255){
-				PlaceVent(x, y, &feature, &vent, bm);
+				PlaceVent(x, y, &feature, &vent, bm, igh);
 			}
 			else if(c>199 && c<=treetop){
 				//trees featuremap green 200-215
-				float h=heightmap[y*mapx+x];
-				if(h<5)
-					continue;
-
-				bool good=true;
-				if (!FlatSpot(x, y))
-					good = false;
-
-				if (!((LastTree[0]==(x-1) && LastTree[1]==y) || (LastTree[0]==x && LastTree[1]==(y-1)))){
-					int t_type=(c-200);
-					map[y*xsize+x]=1;
-					MapFeatureStruct ffs;
-					ffs.featureType=t_type;
-					ffs.relativeSize=0.8f+float(rand())/RAND_MAX*0.4f;
-					ffs.rotation=0;
-					ffs.xpos=(float)startx+x*8+4;
-					ffs.ypos=0;
-					ffs.zpos=(float)starty+y*8+4;
-					LastTree[0]=x;
-					LastTree[1]=y;
-					features.push_back(ffs);
+				if (!igh){
+				   float h=heightmap[y*mapx+x];
+				   if(h<5)
+					    continue;
 				}
+			    bool good=true;
+				if (!igh){
+			       if (!FlatSpot(x, y))
+				      good = false;  
+				}   
+			       
+				if (!(((LastTree[0]==(x-1) && LastTree[1]==y) || (LastTree[0]==x && LastTree[1]==(y-1))) && tol < 3)){
+				   int t_type=(c-200);
+				   map[y*xsize+x]=1;
+				   MapFeatureStruct ffs;
+				   ffs.featureType=t_type;
+				   ffs.relativeSize=1.2f+float(rand())/RAND_MAX*0.4f;
+				   ffs.rotation=0;
+				   ffs.xpos=(float)startx+x*8+4;
+				   ffs.ypos=0;
+				   ffs.zpos=(float)starty+y*8+4;
+				   LastTree[0]=x;
+				   LastTree[1]=y;
+				   features.push_back(ffs);
+				   tol = 0;
+				} 
+				if (((LastTree[0]==(x-1) && LastTree[1]==y) || (LastTree[0]==x && LastTree[1]==(y-1))) && tol < 3){
+				  tol = tol + 1;	 
+			    }
+				if (tol > 3)
+					tol = 0;
 			} 
 			else if (c != 0){
 				printf("Does nothing: green %02x at X %d Y %d\n", c, x, y);
@@ -135,16 +151,11 @@ void CFeatureCreator::CreateFeatures(CBitmap* bm, int startx, int starty, int ar
 		for(int x=0;x<vegfeature.xsize;++x){
 			/* Read grass from the blue channel. */
 			unsigned char c=vegfeature.mem[(y*vegfeature.xsize+x)*4+2];
-			float a=c/255;
-			float b=1-a;
 			int grass=(rand()%(255))+c;
-			if (grass > 254)
+			if (grass > 253)
 			{
-#ifdef WIN32
 				cout<<"\002";
-#else
-				cout<<"@";
-#endif
+
 				vegMap[y*vegfeature.xsize+x]=1;
 			}
 			else
@@ -154,7 +165,7 @@ void CFeatureCreator::CreateFeatures(CBitmap* bm, int startx, int starty, int ar
 	}
 }
 
-void CFeatureCreator::PlaceVent(int x, int y, CBitmap * feature, CBitmap * vent, CBitmap * bm)
+void CFeatureCreator::PlaceVent(int x, int y, CBitmap * feature, CBitmap * vent, CBitmap * bm,bool igh)
 {
 	cout<<"Geo at:";
 	int bx=x*xsize/feature->xsize;
@@ -166,15 +177,15 @@ void CFeatureCreator::PlaceVent(int x, int y, CBitmap * feature, CBitmap * vent,
 
 		bool good=true;
 		
-		if (!FlatSpot(x, y))
-			good = false;
-		
+		if (!igh){
+		   if (!FlatSpot(x, y))
+			  good = false;
+		}
+		   
 		if(good){
-#ifdef WIN32
+
 			cout<<""<<x<<":"<<y<<" \001\n";
-#else
-			cout<<""<<x<<":"<<y<<" *\n";
-#endif
+
 			MapFeatureStruct ffs;
 			ffs.featureType=NUM_TREE_TYPES;
 			ffs.relativeSize=1;
@@ -199,18 +210,10 @@ void CFeatureCreator::PlaceVent(int x, int y, CBitmap * feature, CBitmap * vent,
 		}
 		else {
 			/* Roll up somewhere else to try and put it. */
-#ifdef WIN32
 			cout<< x <<":"<< y <<" X \009";
-#else
-			cout<< x <<":"<< y <<" X @";
-#endif
-#ifdef WIN32
 			x=bx+rand()*(40)/RAND_MAX-20;
 			y=by+rand()*(40)/RAND_MAX-20;
-#else
-			x=bx+( (float)(rand())*(40.0) )/RAND_MAX-20;
-			y=by+( (float)(rand())*(40.0) )/RAND_MAX-20;
-#endif
+
 			if(x<5)
 				x=5;
 			if(x>xsize-5)

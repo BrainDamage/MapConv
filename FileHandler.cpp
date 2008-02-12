@@ -3,9 +3,16 @@
 #include <algorithm>
 #include <cctype>
 #include "filefunctions.h"
-#include <boost/filesystem/exception.hpp>
-
+#include <boost/filesystem/path.hpp>
+ 
 using namespace std;
+
+CFileHandler::CFileHandler()
+: filesize(-1),
+	ifs(0)
+{
+	
+}
 
 CFileHandler::CFileHandler(const char* filename)
 : filesize(-1),
@@ -19,6 +26,11 @@ CFileHandler::CFileHandler(std::string filename)
 	ifs(0)
 {
 	Init(filename.c_str());
+}
+
+void CFileHandler::Open(const char* filename)
+{
+	Init(filename);
 }
 
 void CFileHandler::Init(const char* filename)
@@ -108,7 +120,7 @@ std::vector<std::string> CFileHandler::FindFiles(std::string pattern)
 	for (std::vector<fs::path>::iterator it = found.begin(); it != found.end(); it++)
 		foundstrings.push_back(it->string());
 
-	//todo: get a real regex handler
+	//how to todo: get a real regex handler
 	while(filter.find_last_of('*')!=string::npos)
 		filter.erase(filter.find_last_of('*'),1);
 //	while(filter.find_last_of('.')!=string::npos)
